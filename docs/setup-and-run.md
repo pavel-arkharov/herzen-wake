@@ -46,6 +46,20 @@ Optional:
 ./scripts/run_dev.sh
 ```
 
+## Debug mode
+
+Enable verbose detection diagnostics:
+
+```bash
+./scripts/run_dev.sh --debug-mode
+```
+
+Tune diagnostics:
+
+```bash
+./scripts/run_dev.sh --debug-mode --debug-score-floor 0.05 --debug-log-interval-ms 250
+```
+
 When env vars are unset, `run_dev.sh` uses:
 
 - `HERZEN_WAKEWORD_SOCKET=$PWD/run/wakeword.sock`

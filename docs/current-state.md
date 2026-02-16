@@ -20,6 +20,8 @@ The repository currently contains an MVP daemon that:
 - `scripts/run_dev.sh`: development runner with practical defaults
 - `tests/test_config.py`: configuration validation tests
 - `tests/test_protocol.py`: protocol message shape/encoding tests
+- `tests/test_daemon_cli.py`: debug flag parsing coverage
+- `tests/test_daemon_engine.py`: wakeword engine score-type regression coverage
 
 ## Verification status
 
@@ -29,6 +31,8 @@ Executed successfully:
 - `PYTHONPATH=src .venv/bin/python -m herzen_wake.daemon --help`
 - `./scripts/run_dev.sh --check-config`
 - daemon startup and local socket client read of `ready` message
+- CLI debug-mode parsing tests
+- wakeword engine regression test for NumPy scalar scores
 
 ## Current behavior decisions
 
@@ -37,6 +41,8 @@ Executed successfully:
 - cooldown is enforced daemon-side
 - wakeword events are dropped when no active client is connected
 - second client connection is rejected with `CLIENT_BUSY` error message
+- `--debug-mode` enables verbose diagnostics without changing protocol contract
+- detection scoring accepts Python numeric types and NumPy scalar numeric types
 
 ## Not yet implemented
 

@@ -54,6 +54,11 @@ No microphone devices available
 - grant microphone permission to terminal host
 - check input device selection via `HERZEN_WAKEWORD_MIC_DEVICE`
 
+Daemon shows `ready`/`heartbeat` but no `wakeword`
+- run with `--debug-mode` and inspect score snapshots
+- confirm score crosses threshold
+- if using an older commit, update to latest where NumPy scalar scores are treated as valid numeric values
+
 ## Model replacement workflow
 
 When custom `herzen` wakeword model is available:
@@ -76,3 +81,17 @@ export HERZEN_WAKEWORD_MODEL_PATHS="/absolute/path/to/herzen_v1.onnx"
 ```bash
 HERZEN_WAKEWORD_LOG_LEVEL=DEBUG ./scripts/run_dev.sh
 ```
+
+Diagnostic mode shortcut:
+
+```bash
+./scripts/run_dev.sh --debug-mode
+```
+
+`--debug-mode` adds verbose wakeword-path logs:
+
+- score snapshots
+- threshold suppression
+- cooldown suppression
+- dropped detections when no client is connected
+- protocol send success/failure per message type

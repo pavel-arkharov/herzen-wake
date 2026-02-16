@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import numbers
 import os
 import queue
 import signal
@@ -29,6 +30,8 @@ from .protocol import (
 
 DAEMON_VERSION = "0.1.0"
 HEARTBEAT_INTERVAL_SECONDS = 5.0
+DEFAULT_DEBUG_SCORE_FLOOR = 0.05
+DEFAULT_DEBUG_LOG_INTERVAL_MS = 500
 
 EXIT_OK = 0
 EXIT_CONFIG_ERROR = 2
@@ -51,11 +54,22 @@ class FatalEvent:
 
 
 class WakewordEngine:
-    def __init__(self, config: WakewordConfig):
+    def __init__(
+        self,
+        config: WakewordConfig,
+        *,
+        debug_mode: bool = False,
+        debug_score_floor: float = DEFAULT_DEBUG_SCORE_FLOOR,
+        debug_log_interval_ms: int = DEFAULT_DEBUG_LOG_INTERVAL_MS,
+    ):
         self._config = config
+        self._debug_mode = debug_mode
+        self._debug_score_floor = debug_score_floor
+        self._debug_log_interval_seconds = max(debug_log_interval_ms, 1) / 1000.0
         self._model = None
         self._model_names: list[str] = []
         self._last_detection_monotonic = 0.0
+        self._last_debug_log_monotonic = 0.0
 
     @property
     def model_names(self) -> list[str]:
@@ -102,24 +116,65 @@ class WakewordEngine:
         if not isinstance(scores, dict) or not scores:
             return None
 
+        now = time.monotonic()
         best_keyword = ""
         best_score = float("-inf")
+        normalized_scores: dict[str, float] = {}
         for keyword, raw_score in scores.items():
-            if not isinstance(raw_score, (float, int)):
+            if isinstance(raw_score, bool) or not isinstance(raw_score, numbers.Real):
                 continue
             score = float(raw_score)
+            normalized_scores[str(keyword)] = score
             if score > best_score:
                 best_keyword = str(keyword)
                 best_score = score
 
+        if self._debug_mode and normalized_scores:
+            should_log_snapshot = (
+                now - self._last_debug_log_monotonic >= self._debug_log_interval_seconds
+                and best_score >= self._debug_score_floor
+            ) or best_score >= self._config.threshold
+            if should_log_snapshot:
+                logging.debug(
+                    "Wakeword score snapshot (best=%s score=%.3f threshold=%.3f top=%s).",
+                    best_keyword,
+                    best_score,
+                    self._config.threshold,
+                    _format_top_scores(normalized_scores),
+                )
+                self._last_debug_log_monotonic = now
+
         if not best_keyword or best_score < self._config.threshold:
+            if self._debug_mode and best_keyword and best_score >= self._debug_score_floor:
+                logging.debug(
+                    "Suppressed wakeword candidate (reason=below_threshold keyword=%s score=%.3f threshold=%.3f).",
+                    best_keyword,
+                    best_score,
+                    self._config.threshold,
+                )
             return None
 
-        now = time.monotonic()
         cooldown_seconds = self._config.cooldown_ms / 1000.0
-        if now - self._last_detection_monotonic < cooldown_seconds:
+        cooldown_elapsed = now - self._last_detection_monotonic
+        if cooldown_elapsed < cooldown_seconds:
+            if self._debug_mode:
+                remaining_ms = int(max(cooldown_seconds - cooldown_elapsed, 0.0) * 1000)
+                logging.debug(
+                    "Suppressed wakeword candidate (reason=cooldown keyword=%s score=%.3f remaining_ms=%d).",
+                    best_keyword,
+                    best_score,
+                    remaining_ms,
+                )
             return None
         self._last_detection_monotonic = now
+
+        if self._debug_mode:
+            logging.debug(
+                "Accepted wakeword candidate (keyword=%s score=%.3f threshold=%.3f).",
+                best_keyword,
+                best_score,
+                self._config.threshold,
+            )
 
         return DetectionEvent(
             keyword=best_keyword,
@@ -150,8 +205,12 @@ class WakewordDaemon:
         config: WakewordConfig,
         *,
         audio_source_factory: Callable[[WakewordConfig], SoundDeviceAudioSource] | None = None,
+        debug_mode: bool = False,
+        debug_score_floor: float = DEFAULT_DEBUG_SCORE_FLOOR,
+        debug_log_interval_ms: int = DEFAULT_DEBUG_LOG_INTERVAL_MS,
     ):
         self.config = config
+        self._debug_mode = debug_mode
         self._audio_source_factory = audio_source_factory or (
             lambda cfg: SoundDeviceAudioSource(
                 sample_rate=cfg.sample_rate,
@@ -159,7 +218,12 @@ class WakewordDaemon:
                 mic_device=cfg.mic_device,
             )
         )
-        self._engine = WakewordEngine(config)
+        self._engine = WakewordEngine(
+            config,
+            debug_mode=debug_mode,
+            debug_score_floor=debug_score_floor,
+            debug_log_interval_ms=debug_log_interval_ms,
+        )
         self._stop_event = threading.Event()
         self._detection_queue: queue.Queue[DetectionEvent] = queue.Queue()
         self._fatal_queue: queue.Queue[FatalEvent] = queue.Queue()
@@ -177,6 +241,15 @@ class WakewordDaemon:
         self._start_detection_loop()
 
         logging.info("wakewordd started (socket=%s)", self.config.socket_path)
+        if self._debug_mode:
+            logging.debug(
+                "Debug mode enabled (threshold=%.3f cooldown_ms=%d chunk_samples=%d sample_rate=%d mic_device=%s).",
+                self.config.threshold,
+                self.config.cooldown_ms,
+                self.config.chunk_samples,
+                self.config.sample_rate,
+                self.config.mic_device,
+            )
         exit_code = EXIT_OK
 
         try:
@@ -336,6 +409,8 @@ class WakewordDaemon:
         ):
             self._close_active_client()
             return
+        if self._debug_mode:
+            logging.debug("Sent ready message to client.")
         self._heartbeat_deadline = time.monotonic() + HEARTBEAT_INTERVAL_SECONDS
 
     def _flush_detection_events(self) -> None:
@@ -346,6 +421,12 @@ class WakewordDaemon:
                 return
 
             if self._client_socket is None:
+                if self._debug_mode:
+                    logging.debug(
+                        "Dropping detection (reason=no_client keyword=%s score=%.3f).",
+                        event.keyword,
+                        event.score,
+                    )
                 continue
 
             sent = self._send_to_active_client(
@@ -373,6 +454,8 @@ class WakewordDaemon:
             return
 
         self._send_to_active_client(heartbeat_message())
+        if self._debug_mode:
+            logging.debug("Sent heartbeat message to client.")
         self._heartbeat_deadline = time.monotonic() + HEARTBEAT_INTERVAL_SECONDS
 
     def _send_error_and_close_active_client(self, fatal: FatalEvent) -> None:
@@ -392,6 +475,12 @@ class WakewordDaemon:
             return False
 
         sent = self._send_to_socket(client, message)
+        if self._debug_mode:
+            message_type = str(message.get("type", "unknown"))
+            if sent:
+                logging.debug("Protocol send ok (type=%s).", message_type)
+            else:
+                logging.debug("Protocol send failed (type=%s); closing client.", message_type)
         if not sent:
             self._close_active_client()
         return sent
@@ -455,17 +544,50 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=os.environ.get("HERZEN_WAKEWORD_LOG_LEVEL", "INFO"),
         help="Python logging level (default: INFO).",
     )
+    parser.add_argument(
+        "--debug-mode",
+        action="store_true",
+        help="Enable verbose wakeword diagnostics (score snapshots and suppression reasons).",
+    )
+    parser.add_argument(
+        "--debug-score-floor",
+        type=float,
+        default=DEFAULT_DEBUG_SCORE_FLOOR,
+        help=f"Minimum score to include in periodic debug score snapshots (default: {DEFAULT_DEBUG_SCORE_FLOOR}).",
+    )
+    parser.add_argument(
+        "--debug-log-interval-ms",
+        type=int,
+        default=DEFAULT_DEBUG_LOG_INTERVAL_MS,
+        help=f"Interval for periodic debug score snapshots (default: {DEFAULT_DEBUG_LOG_INTERVAL_MS}ms).",
+    )
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
-    level_name = str(args.log_level).upper()
-    level = getattr(logging, level_name, logging.INFO)
+    if args.debug_mode:
+        level = logging.DEBUG
+    else:
+        level_name = str(args.log_level).upper()
+        level = getattr(logging, level_name, logging.INFO)
     logging.basicConfig(
         level=level,
         format="%(asctime)s %(levelname)s %(message)s",
     )
+
+    if args.debug_score_floor < 0.0 or args.debug_score_floor > 1.0:
+        print(
+            "Configuration error: --debug-score-floor must be between 0.0 and 1.0.",
+            file=sys.stderr,
+        )
+        return EXIT_CONFIG_ERROR
+    if args.debug_log_interval_ms <= 0:
+        print(
+            "Configuration error: --debug-log-interval-ms must be a positive integer.",
+            file=sys.stderr,
+        )
+        return EXIT_CONFIG_ERROR
 
     try:
         config = WakewordConfig.from_env()
@@ -480,8 +602,20 @@ def main(argv: list[str] | None = None) -> int:
         print(f"inference_framework={config.inference_framework}")
         return EXIT_OK
 
-    daemon = WakewordDaemon(config)
+    daemon = WakewordDaemon(
+        config,
+        debug_mode=args.debug_mode,
+        debug_score_floor=args.debug_score_floor,
+        debug_log_interval_ms=args.debug_log_interval_ms,
+    )
     return daemon.run()
+
+
+def _format_top_scores(scores: dict[str, float], *, limit: int = 3) -> str:
+    top = sorted(scores.items(), key=lambda item: item[1], reverse=True)[:limit]
+    if not top:
+        return "-"
+    return ", ".join(f"{keyword}:{score:.3f}" for keyword, score in top)
 
 
 if __name__ == "__main__":

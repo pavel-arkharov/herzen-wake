@@ -69,6 +69,18 @@ Or use the helper:
 ./scripts/run_dev.sh
 ```
 
+Debug mode (verbose detection diagnostics):
+
+```bash
+./scripts/run_dev.sh --debug-mode
+```
+
+Optional debug tuning:
+
+```bash
+./scripts/run_dev.sh --debug-mode --debug-score-floor 0.05 --debug-log-interval-ms 250
+```
+
 `run_dev.sh` sets temporary dev defaults when env vars are unset:
 
 - `HERZEN_WAKEWORD_SOCKET=$PWD/run/wakeword.sock`
