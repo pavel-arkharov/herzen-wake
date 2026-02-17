@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import numpy as np
 
-from herzen_wake.daemon import WakewordEngine
+from herzen_wake.daemon import WakewordEngine, _iter_feature_model_dirs
 
 
 class _FakeModel:
@@ -30,3 +30,11 @@ def test_engine_accepts_numpy_scalar_scores() -> None:
     assert event is not None
     assert event.keyword == "hey_jarvis_v0.1"
     assert event.score > 0.9
+
+
+def test_feature_model_dir_candidates_include_repo_openwakeword() -> None:
+    candidates = _iter_feature_model_dirs(Path("/tmp/project/models"))
+
+    assert Path("/tmp/project/models") in candidates
+    assert Path("/tmp/project/models/openwakeword") in candidates
+    assert Path("/tmp/project/openwakeword") in candidates

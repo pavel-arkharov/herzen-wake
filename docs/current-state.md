@@ -18,6 +18,7 @@ The repository currently contains an MVP daemon that:
 - `src/herzen_wake/audio.py`: microphone stream abstraction
 - `src/herzen_wake/protocol.py`: JSON message constructors/serializer
 - `scripts/run_dev.sh`: development runner with practical defaults
+- `scripts/run_client.sh`: Terminal B socket listener helper
 - `tests/test_config.py`: configuration validation tests
 - `tests/test_protocol.py`: protocol message shape/encoding tests
 - `tests/test_daemon_cli.py`: debug flag parsing coverage
@@ -37,12 +38,16 @@ Executed successfully:
 ## Current behavior decisions
 
 - daemon requires explicit socket/model envs at config layer
-- `scripts/run_dev.sh` provides default dev values when envs are unset
+- `scripts/run_dev.sh` provides default dev values when envs are unset and prefers newest `models/production/wakewords/herzen*.onnx`
 - cooldown is enforced daemon-side
 - wakeword events are dropped when no active client is connected
 - second client connection is rejected with `CLIENT_BUSY` error message
 - `--debug-mode` enables verbose diagnostics without changing protocol contract
 - detection scoring accepts Python numeric types and NumPy scalar numeric types
+- model assets are organized by intent:
+  - `models/production/wakewords` for active Herzen models
+  - `models/production/openwakeword` for required ONNX feature models
+  - `models/default/backup` for fallback/reference models
 
 ## Not yet implemented
 

@@ -130,18 +130,25 @@ class WakewordEngine:
                 best_score = score
 
         if self._debug_mode and normalized_scores:
-            should_log_snapshot = (
-                now - self._last_debug_log_monotonic >= self._debug_log_interval_seconds
-                and best_score >= self._debug_score_floor
-            ) or best_score >= self._config.threshold
+            interval_elapsed = now - self._last_debug_log_monotonic >= self._debug_log_interval_seconds
+            should_log_snapshot = interval_elapsed or best_score >= self._config.threshold
             if should_log_snapshot:
-                logging.debug(
-                    "Wakeword score snapshot (best=%s score=%.3f threshold=%.3f top=%s).",
-                    best_keyword,
-                    best_score,
-                    self._config.threshold,
-                    _format_top_scores(normalized_scores),
-                )
+                if best_score >= self._debug_score_floor:
+                    logging.debug(
+                        "Wakeword score snapshot (best=%s score=%.3f threshold=%.3f top=%s).",
+                        best_keyword,
+                        best_score,
+                        self._config.threshold,
+                        _format_top_scores(normalized_scores),
+                    )
+                else:
+                    logging.debug(
+                        "Wakeword score snapshot below floor (best=%s score=%.3f floor=%.3f top=%s).",
+                        best_keyword,
+                        best_score,
+                        self._debug_score_floor,
+                        _format_top_scores(normalized_scores),
+                    )
                 self._last_debug_log_monotonic = now
 
         if not best_keyword or best_score < self._config.threshold:
@@ -186,16 +193,18 @@ class WakewordEngine:
 
     def _resolve_feature_model_kwargs(self) -> dict[str, str]:
         extension = ".onnx" if self._config.inference_framework == "onnx" else ".tflite"
-        models_dir = self._config.model_paths[0].parent
+        primary_dir = self._config.model_paths[0].parent
 
-        melspec_path = models_dir / f"melspectrogram{extension}"
-        embedding_path = models_dir / f"embedding_model{extension}"
-
-        if melspec_path.exists() and embedding_path.exists():
-            return {
-                "melspec_model_path": str(melspec_path),
-                "embedding_model_path": str(embedding_path),
-            }
+        for candidate_dir in _iter_feature_model_dirs(primary_dir):
+            melspec_path = candidate_dir / f"melspectrogram{extension}"
+            embedding_path = candidate_dir / f"embedding_model{extension}"
+            if melspec_path.exists() and embedding_path.exists():
+                if self._debug_mode:
+                    logging.debug("Using feature models from %s", candidate_dir)
+                return {
+                    "melspec_model_path": str(melspec_path),
+                    "embedding_model_path": str(embedding_path),
+                }
         return {}
 
 
@@ -616,6 +625,24 @@ def _format_top_scores(scores: dict[str, float], *, limit: int = 3) -> str:
     if not top:
         return "-"
     return ", ".join(f"{keyword}:{score:.3f}" for keyword, score in top)
+
+
+def _iter_feature_model_dirs(primary_dir: Path) -> list[Path]:
+    # Prefer colocated feature models, then sibling openwakeword feature directory.
+    candidates = [
+        primary_dir,
+        primary_dir / "openwakeword",
+        primary_dir.parent / "openwakeword",
+    ]
+    unique: list[Path] = []
+    seen: set[str] = set()
+    for path in candidates:
+        key = str(path.resolve() if path.exists() else path)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(path)
+    return unique
 
 
 if __name__ == "__main__":

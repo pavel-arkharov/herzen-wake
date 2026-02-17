@@ -46,6 +46,12 @@ Optional:
 ./scripts/run_dev.sh
 ```
 
+Terminal B (client listener):
+
+```bash
+./scripts/run_client.sh
+```
+
 ## Debug mode
 
 Enable verbose detection diagnostics:
@@ -63,7 +69,15 @@ Tune diagnostics:
 When env vars are unset, `run_dev.sh` uses:
 
 - `HERZEN_WAKEWORD_SOCKET=$PWD/run/wakeword.sock`
-- `HERZEN_WAKEWORD_MODEL_PATHS=$PWD/models/openwakeword/hey_jarvis_v0.1.onnx`
+- `HERZEN_WAKEWORD_MODEL_PATHS` selection order:
+  - newest `$PWD/models/production/wakewords/herzen*.onnx` (if present)
+  - otherwise `$PWD/models/default/backup/wakewords/hey_jarvis_v0.1.onnx`
+
+Recommended model structure:
+
+- production wakewords: `$PWD/models/production/wakewords/`
+- production feature models: `$PWD/models/production/openwakeword/`
+- default backups: `$PWD/models/default/backup/`
 
 ## Config-only validation
 

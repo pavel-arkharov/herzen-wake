@@ -64,6 +64,8 @@ Daemon shows `ready`/`heartbeat` but no `wakeword`
 When custom `herzen` wakeword model is available:
 
 1. place model artifact(s) on disk
+   - recommended: `models/production/wakewords/`
+   - keep fallback models under `models/default/backup/`
 2. set:
 
 ```bash
@@ -91,6 +93,7 @@ Diagnostic mode shortcut:
 `--debug-mode` adds verbose wakeword-path logs:
 
 - score snapshots
+- periodic score snapshots even when below floor (explicit "below floor" message)
 - threshold suppression
 - cooldown suppression
 - dropped detections when no client is connected

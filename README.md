@@ -69,6 +69,12 @@ Or use the helper:
 ./scripts/run_dev.sh
 ```
 
+Terminal B client listener:
+
+```bash
+./scripts/run_client.sh
+```
+
 Debug mode (verbose detection diagnostics):
 
 ```bash
@@ -84,7 +90,15 @@ Optional debug tuning:
 `run_dev.sh` sets temporary dev defaults when env vars are unset:
 
 - `HERZEN_WAKEWORD_SOCKET=$PWD/run/wakeword.sock`
-- `HERZEN_WAKEWORD_MODEL_PATHS=$PWD/models/openwakeword/hey_jarvis_v0.1.onnx`
+- `HERZEN_WAKEWORD_MODEL_PATHS` selection order:
+  - newest `$PWD/models/production/wakewords/herzen*.onnx` (if present)
+  - otherwise fallback `$PWD/models/default/backup/wakewords/hey_jarvis_v0.1.onnx`
+
+Current local model layout:
+
+- production wakewords: `$PWD/models/production/wakewords/`
+- production feature models: `$PWD/models/production/openwakeword/`
+- default backup wakewords: `$PWD/models/default/backup/wakewords/`
 
 To switch later to your trained `herzen` model, set:
 
