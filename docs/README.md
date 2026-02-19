@@ -2,7 +2,7 @@
 
 This folder documents the current implementation state of the wakeword daemon.
 
-Snapshot date: 2026-02-16
+Snapshot date: 2026-02-19
 
 ## Document index
 

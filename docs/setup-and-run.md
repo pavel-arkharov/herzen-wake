@@ -21,7 +21,7 @@ The project currently uses a temporary default wakeword model (`hey_jarvis`) unt
 the custom `herzen` model is shipped.
 
 ```bash
-python -c "from openwakeword.utils import download_models; download_models(model_names=['hey_jarvis'], target_directory='./models/openwakeword')"
+python -c "from openwakeword.utils import download_models; download_models(model_names=['hey_jarvis'], target_directory='./models/default/backup/wakewords')"
 ```
 
 ## Environment variables
@@ -70,7 +70,9 @@ When env vars are unset, `run_dev.sh` uses:
 
 - `HERZEN_WAKEWORD_SOCKET=$PWD/run/wakeword.sock`
 - `HERZEN_WAKEWORD_MODEL_PATHS` selection order:
+  - newest root `*hyartsen*.onnx` / `*hyartzen*.onnx` (if present)
   - newest `$PWD/models/production/wakewords/herzen*.onnx` (if present)
+  - newest `$PWD/models/herzen*.onnx` (legacy fallback)
   - otherwise `$PWD/models/default/backup/wakewords/hey_jarvis_v0.1.onnx`
 
 Recommended model structure:

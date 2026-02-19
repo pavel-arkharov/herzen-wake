@@ -8,3 +8,6 @@ __pycache__/
 run/
 models/
 docs/tasks/*
+docs/internal/
+/*hyartsen*.onnx
+/*hyartzen*.onnx

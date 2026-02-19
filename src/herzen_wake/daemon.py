@@ -633,6 +633,11 @@ def _iter_feature_model_dirs(primary_dir: Path) -> list[Path]:
         primary_dir,
         primary_dir / "openwakeword",
         primary_dir.parent / "openwakeword",
+        primary_dir / "models" / "production" / "openwakeword",
+        primary_dir / "models" / "openwakeword",
+        primary_dir.parent / "production" / "openwakeword",
+        primary_dir.parent / "models" / "production" / "openwakeword",
+        primary_dir.parent / "models" / "openwakeword",
     ]
     unique: list[Path] = []
     seen: set[str] = set()

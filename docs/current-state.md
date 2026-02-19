@@ -38,7 +38,7 @@ Executed successfully:
 ## Current behavior decisions
 
 - daemon requires explicit socket/model envs at config layer
-- `scripts/run_dev.sh` provides default dev values when envs are unset and prefers newest `models/production/wakewords/herzen*.onnx`
+- `scripts/run_dev.sh` provides default dev values when envs are unset and prefers newest root `hyartsen/hyartzen` model, then production `herzen` model
 - cooldown is enforced daemon-side
 - wakeword events are dropped when no active client is connected
 - second client connection is rejected with `CLIENT_BUSY` error message

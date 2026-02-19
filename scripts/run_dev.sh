@@ -12,6 +12,16 @@ source .venv/bin/activate
 
 DEFAULT_SOCKET="$ROOT_DIR/run/wakeword.sock"
 DEFAULT_MODEL="$ROOT_DIR/models/default/backup/wakewords/hey_jarvis_v0.1.onnx"
+DEFAULT_HYARTSEN_MODEL=""
+shopt -s nullglob
+HYARTSEN_CANDIDATES=(
+  "$ROOT_DIR"/*hyartsen*.onnx
+  "$ROOT_DIR"/*hyartzen*.onnx
+)
+if [[ ${#HYARTSEN_CANDIDATES[@]} -gt 0 ]]; then
+  DEFAULT_HYARTSEN_MODEL="$(ls -t "${HYARTSEN_CANDIDATES[@]}" | head -n 1)"
+fi
+shopt -u nullglob
 DEFAULT_HERZEN_MODEL="$(ls -t "$ROOT_DIR"/models/production/wakewords/herzen*.onnx 2>/dev/null | head -n 1 || true)"
 if [[ -z "$DEFAULT_HERZEN_MODEL" ]]; then
   DEFAULT_HERZEN_MODEL="$(ls -t "$ROOT_DIR"/models/herzen*.onnx 2>/dev/null | head -n 1 || true)"
@@ -22,7 +32,10 @@ if [[ -z "${HERZEN_WAKEWORD_SOCKET:-}" ]]; then
 fi
 
 if [[ -z "${HERZEN_WAKEWORD_MODEL_PATHS:-}" ]]; then
-  if [[ -n "$DEFAULT_HERZEN_MODEL" && -f "$DEFAULT_HERZEN_MODEL" ]]; then
+  if [[ -n "$DEFAULT_HYARTSEN_MODEL" && -f "$DEFAULT_HYARTSEN_MODEL" ]]; then
+    export HERZEN_WAKEWORD_MODEL_PATHS="$DEFAULT_HYARTSEN_MODEL"
+    echo "Using hyartsen model: $DEFAULT_HYARTSEN_MODEL"
+  elif [[ -n "$DEFAULT_HERZEN_MODEL" && -f "$DEFAULT_HERZEN_MODEL" ]]; then
     export HERZEN_WAKEWORD_MODEL_PATHS="$DEFAULT_HERZEN_MODEL"
     echo "Using Herzen model: $DEFAULT_HERZEN_MODEL"
   elif [[ -f "$DEFAULT_MODEL" ]]; then

@@ -1,9 +1,14 @@
 # herzen-wake
 
-Persistent local wakeword daemon for Herzen.
+`herzen-wake` is a persistent local wakeword daemon that runs independently from
+the main Herzen runtime. It captures microphone audio, performs wakeword
+inference with openWakeWord, and emits newline-delimited JSON (`ready`,
+`wakeword`, `heartbeat`, `error`) over a local Unix socket. This keeps wakeword
+detection stable even while the main app is restarted during development.
 
-The daemon captures microphone audio, runs openWakeWord inference, and publishes
-JSONL events over a Unix socket.
+This repository contains the Python daemon, configuration and protocol layers,
+development runner scripts, and tests for config/protocol/engine behavior.
+Mother repo: [herzen](https://github.com/pavel-arkharov/herzen).
 
 ## Requirements
 
@@ -30,7 +35,7 @@ python -m pip install -e ".[dev]"
 3. Download openWakeWord ONNX models (recommended on macOS):
 
 ```bash
-python -c "from openwakeword.utils import download_models; download_models(model_names=['hey_jarvis'], target_directory='./models/openwakeword')"
+python -c "from openwakeword.utils import download_models; download_models(model_names=['hey_jarvis'], target_directory='./models/default/backup/wakewords')"
 ```
 
 ## Environment
@@ -52,7 +57,7 @@ Example:
 
 ```bash
 export HERZEN_WAKEWORD_SOCKET="$PWD/run/wakeword.sock"
-export HERZEN_WAKEWORD_MODEL_PATHS="$PWD/models/openwakeword/hey_jarvis_v0.1.onnx"
+export HERZEN_WAKEWORD_MODEL_PATHS="$PWD/models/default/backup/wakewords/hey_jarvis_v0.1.onnx"
 export HERZEN_WAKEWORD_THRESHOLD="0.5"
 ```
 
@@ -91,7 +96,9 @@ Optional debug tuning:
 
 - `HERZEN_WAKEWORD_SOCKET=$PWD/run/wakeword.sock`
 - `HERZEN_WAKEWORD_MODEL_PATHS` selection order:
+  - newest `$PWD/*hyartsen*.onnx` or `$PWD/*hyartzen*.onnx` (if present)
   - newest `$PWD/models/production/wakewords/herzen*.onnx` (if present)
+  - newest `$PWD/models/herzen*.onnx` (legacy fallback)
   - otherwise fallback `$PWD/models/default/backup/wakewords/hey_jarvis_v0.1.onnx`
 
 Current local model layout:
